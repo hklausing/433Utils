@@ -11,7 +11,11 @@ the library provided by the arduino.
 
 First you have to install the [wiringpi](https://projects.drogon.net/raspberry-pi/wiringpi/download-and-install/) library.
 After that you can compile the example program *send* by executing *make*. 
-It uses wiringPi pin no 2 by default. You may want to change the used GPIO pin before compilation of the codesend.cpp source file. (Good Resource for Pin Details https://pinout.xyz/pinout/wiringpi)
+It uses wiringPi pin no 21 by default. The GPIO pin can be controlled by the option -g GPIOPIN at program start. (Good Resource for Pin Details https://pinout.xyz/pinout/wiringpi)
+
+All three program supporting the option -h to give some help information.
+
+The programs send and codesend are able to transmit multiple data packages.
 
 ## Note
 The 'RF\_Sniffer' code is as yet untested.  It _should_ work, but it is still being tested thoroughly.  It's provided to allow you to start playing with it now.

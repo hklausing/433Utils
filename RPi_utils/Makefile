@@ -1,19 +1,33 @@
+TARGETS		= send codesend RFSniffer
+RCSWITCH	= ../rc-switch/RCSwitch.o
+HELPER		= helper.o
+INSTPATH	= /usr/local/bin
 
 # Defines the RPI variable which is needed by rc-switch/RCSwitch.h
 CXXFLAGS=-DRPI
 
-all: send codesend RFSniffer
+#all: send codesend RFSniffer
+all: $(TARGETS)
 
-send: ../rc-switch/RCSwitch.o send.o
+send: $(RCSWITCH) $(HELPER) send.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $+ -o $@ -lwiringPi -lwiringPiDev -lcrypt
-	
-codesend: ../rc-switch/RCSwitch.o codesend.o
+
+codesend: $(RCSWITCH) $(HELPER) codesend.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $+ -o $@ -lwiringPi -lwiringPiDev -lcrypt
-	
-RFSniffer: ../rc-switch/RCSwitch.o RFSniffer.o
+
+RFSniffer: $(RCSWITCH) $(HELPER) RFSniffer.o
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $+ -o $@ -lwiringPi -lwiringPiDev -lcrypt
-	
+
+
+install:
+	cp $(TARGETS) $(INSTPATH)/
+
 
 clean:
-	$(RM) ../rc-switch/*.o *.o send codesend servo RFSniffer
+	$(RM) $(addprefix $(INSTPATH)/,$(TARGETS)) \
+		$(addprefix ./,$(TARGETS)) \
+		$(addsuffix .o,$(TARGETS)) \
+		$(RCSWITCH) $(HELPER)
 
+
+#../rc-switch/*.o *.o send codesend servo RFSniffer
