@@ -9,24 +9,43 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string>
 #include "helper.h"
 
 
-#define VERSION "v0.0.1"
-#define RELEASE "2018-12-20"
+#define VERSION "v0.1.0"
+#define RELEASE "2018-12-31"
 #define GPIOPIN 22
 
 
 RCSwitch mySwitch;
 
 
+
+std::string ulongToBinary(unsigned long value, unsigned length=0) {
+
+  std::string binary;
+
+  while(value != 0 || length) {
+
+    binary = (value % 2 == 0 ? "0" : "1" ) + binary;
+    value /= 2;
+    if(length) { length--; }
+  }
+
+  return binary;
+}
+
+
+
 int main(int argc, char *argv[]) {
 
   // option variables
+  int flag_binary = 0;
   int flag_debug = 0;
+  int flag_info = 0;
+  int flag_hex = 0;
   int gpio_pin = GPIOPIN;
-  int pulse_length = 0;
-  int protocol_id = 1;            // protocol ID
 
   // variables for getopt
   int c;      // option code
@@ -34,9 +53,13 @@ int main(int argc, char *argv[]) {
 
   opterr = 0;
 
-  while ((c = getopt (argc, argv, "Vdg:hl:p:")) != -1) {
+  while ((c = getopt (argc, argv, "Vbdg:hix")) != -1) {
 
     switch (c) {
+
+      case 'b':
+        flag_binary = 1;
+      break;
 
       case 'd':
         flag_debug = 1;
@@ -50,38 +73,40 @@ int main(int argc, char *argv[]) {
         }
         break;
 
-      case 'l':
-        pulse_length = atoi(optarg);
-        if(pulse_length < 1) {
-          fprintf(stderr, "ERROR: Puls length must be greater 0!\n");
-          return 1;
-        }
-        break;
+      case 'i':
+        flag_info = 1;
+      break;
 
       case 'h':
-        printf("Usage: RFsniffer [OPTIONS]\n");
+        printf("Usage: RFSniffer [OPTIONS]\n");
         printf("\n");
         printf("OPTIONS\n");
-        printf("-d      Displays debug information\n");
+        printf("-b      Displays values as binary number with leading 'b'.\n");
+        printf("-d      Displays debug information.\n");
         printf("-g PIN  Sets the used GPIO pin number, default is %d. PIN must be in range 1..29\n", GPIOPIN);
-        printf("-h      Show this help information\n");
-        printf("-l LEN  Defines pulse length in usec, default is 350 in protocol 1.\n");
-        printf("        LEN must be greater 0.\n");
-        printf("-p PROT Defines the used protocol ID, default is 1.\n");
-        printf("        Allowed range is 1..5, see rc-switch documentation for details.\n");
-        printf("-V      Displays program version\n");
+        printf("-h      Show this help information.\n");
+        printf("-i      Additional received block information, with bit length, protocol and delay.\n");
+        printf("-x      Displays values as hexadecimal number leading 'h'.\n");
+        printf("-V      Displays program version.\n");
+        printf("\n");
+        printf("Protocol Typ  Pulse length  Sync bit  Wave form '0'  Wave form '1'\n");
+        printf("       1          350us      1 / 31      1 /  3         3 / 1\n");
+        printf("       2          650us      1 / 10      1 /  2         2 / 1\n");
+        printf("       3          100us      3 / 71      4 / 11         9 / 6\n");
+        printf("       4          380us      1 /  6      1 /  3         3 / 1\n");
+        printf("       5          500us      6 / 14      1 /  2         2 / 1\n");
+        printf("\n");
+        printf("Example\n");
+        printf("  Display all received codes with full information setup:\n");
+        printf("  RFSniffer -bix\n");
         printf("\n");
         return 0;
         exit(0);
         break;
 
-      case 'p':
-        protocol_id = atoi(optarg);
-        if((protocol_id < 1) || (protocol_id > 5)) {
-          fprintf(stderr, "ERROR: Protocol ID must be in range 1..5!\n");
-          return 1;
-        }
-        break;
+      case 'x':
+        flag_hex = 1;
+      break;
 
       case 'V':
         printf("%s (released %s)\n", VERSION, RELEASE);
@@ -103,8 +128,6 @@ int main(int argc, char *argv[]) {
   // debug: show defined option values
   if(flag_debug) {
     printf ("gpio_pin = %d\n", gpio_pin);
-    printf ("pulse_length = %d usec\n", pulse_length);
-    printf ("protocol_id = %d\n", protocol_id);
   }
 
 
@@ -117,12 +140,6 @@ int main(int argc, char *argv[]) {
   }
 
   mySwitch = RCSwitch();
-  if(protocol_id > 0){
-    mySwitch.setProtocol(protocol_id);
-  }
-  if(pulse_length > 0){
-    mySwitch.setPulseLength(pulse_length);
-  }
   mySwitch.enableReceive(gpio_pin);  // Receiver on interrupt 0
 
 
@@ -133,19 +150,48 @@ int main(int argc, char *argv[]) {
 
     if (mySwitch.available()) {
 
-      int value = mySwitch.getReceivedValue();
+      unsigned long value = mySwitch.getReceivedValue();
+      unsigned int bitlen = mySwitch.getReceivedBitlength();
+      unsigned int protocol = mySwitch.getReceivedProtocol();
+      unsigned int delay = mySwitch.getReceivedDelay();
+      unsigned int *rawvalues = mySwitch.getReceivedRawdata();
+      mySwitch.resetAvailable();
+
       if (value == 0) {
 
         printf("Unknown encoding\n");
 
       } else {
 
-        printf("%s Received %i\n", getTimeStamp(), mySwitch.getReceivedValue() );
+        // handle hexadecimal value
+        char hexdecimal[128];
+        if(flag_hex) {
+          sprintf(hexdecimal, "  x%lx", value);
+        } else {
+          hexdecimal[0] = 0;
+        }
+
+        // handle binary value
+        char binary[128];
+        if(flag_binary) {
+          sprintf(binary, "  b%s", ulongToBinary(value, bitlen).c_str());
+        } else {
+          binary[0] = 0;
+        }
+
+        // handle additional information
+        char info[128];
+        if(flag_info) {
+          sprintf(info, "  len:%i  prt:%i  dly:%i", bitlen, protocol, delay);
+        } else {
+          info[0] = 0;
+        }
+
+        printf("%s -> d%lu%s%s%s\n", getTimeStamp(), value, hexdecimal, binary, info);
 
       }
 
       fflush(stdout);
-      mySwitch.resetAvailable();
     }
 
     usleep(100);
